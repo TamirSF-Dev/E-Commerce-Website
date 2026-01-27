@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
@@ -12,12 +13,17 @@ app = FastAPI()
 
 MONGO_URI = os.getenv("MONGODB_URI")
 client = MongoClient(MONGO_URI)
-db = client["Ecommerce"] # Connect explicitly to your DB
+db = client["Ecommerce"] # Ensure this matches your DB name exactly
 
 # Global variables to hold our model in memory
 df = None
 cosine_sim = None
 indices = None
+
+# 2. Pydantic Model for POST Requests (Home Page)
+class RecommendationRequest(BaseModel):
+    product_ids: list[str]  # List of IDs user likes (Cart + Orders)
+    exclude_ids: list[str]  # List of IDs to NOT recommend (Cart + Orders)
 
 def train_model():
     """
@@ -40,7 +46,6 @@ def train_model():
     df['_id'] = df['_id'].astype(str)
     
     # Combine relevant text features into one 'content' column
-    # We fill NaN with empty strings just in case
     df['content'] = (
         df['name'] + " " + 
         df['description'].fillna('') + " " + 
@@ -49,7 +54,6 @@ def train_model():
     )
     
     # Initialize TF-IDF Vectorizer
-    # stop_words='english' removes common words like "the", "a", "is"
     tfidf = TfidfVectorizer(stop_words='english')
     
     # Convert text to Matrix
@@ -63,14 +67,59 @@ def train_model():
     
     print("✅ ML Model Trained Successfully!")
 
-# 2. Train on Startup
+# 3. Train on Startup
 @app.on_event("startup")
 async def startup_event():
     train_model()
 
-# 3. Recommendation Endpoint
+# ==========================================
+# ROUTE 1: Home Page (Personalized Logic)
+# ==========================================
+@app.post("/recommend")
+def get_recommendations(request: RecommendationRequest):
+    global df, cosine_sim, indices
+    
+    if df is None or df.empty:
+        raise HTTPException(status_code=503, detail="Model not trained.")
+
+    # 1. Get indices of all input products (User history)
+    valid_indices = [indices[pid] for pid in request.product_ids if pid in indices]
+    
+    # If user history has no matches in our DB, return empty list
+    if not valid_indices:
+        return []
+
+    # 2. Sum up similarity scores for all input products
+    # This finds items similar to the *collection* of things I like
+    sim_scores = sum(cosine_sim[idx] for idx in valid_indices)
+
+    # 3. Create a list of (Index, Score) tuples
+    sim_scores = list(enumerate(sim_scores))
+
+    # 4. Sort by score (highest first)
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+
+    # 5. Filter Results
+    final_recommendations = []
+    for i, score in sim_scores:
+        product_id = df['_id'].iloc[i]
+        
+        # EXCLUSION LOGIC: Don't recommend items I already own
+        if product_id in request.exclude_ids:
+            continue
+            
+        final_recommendations.append(product_id)
+        
+        if len(final_recommendations) >= 5: # Stop after 5 items
+            break
+            
+    return final_recommendations
+
+# ==========================================
+# ROUTE 2: Product Page (Single Item Logic)
+# ==========================================
 @app.get("/recommend/{product_id}")
-def recommend(product_id: str):
+def recommend_single(product_id: str):
     """
     Returns a list of 5 similar product IDs based on content similarity.
     """
@@ -80,7 +129,7 @@ def recommend(product_id: str):
         raise HTTPException(status_code=503, detail="Model not trained yet.")
         
     if product_id not in indices:
-        raise HTTPException(status_code=404, detail="Product ID not found in ML model.")
+        raise HTTPException(status_code=404, detail="Product ID not found.")
 
     # Get the index of the product
     idx = indices[product_id]
@@ -97,7 +146,7 @@ def recommend(product_id: str):
     # Return the Product IDs as a list
     return df['_id'].iloc[top_indices].tolist()
 
-# 4. Refresh Endpoint (Optional: to retrain without restarting server)
+# 5. Refresh Endpoint
 @app.get("/refresh")
 def refresh_model():
     train_model()

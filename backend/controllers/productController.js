@@ -83,30 +83,31 @@ const singleProduct = async (req, res) => {
 // Function to get recommendations from Python ML Service
 const getRecommendations = async (req, res) => {
     try {
-        const { id } = req.params;
-
-        // 1. Call the Python Service
-        // Note: Use 'http://127.0.0.1:8000' if running locally
-        const pythonResponse = await axios.get(`http://127.0.0.1:8000/recommend/${id}`);
-        const recommendedIds = pythonResponse.data;
-
-        // 2. Fetch the actual product details from MongoDB using these IDs
-        const products = await productModel.find({
-            _id: { $in: recommendedIds }
+        const { productIds, excludeIds } = req.body;
+        const pythonResponse = await axios.post('http://127.0.0.1:8000/recommend', {
+            product_ids: productIds,
+            exclude_ids: excludeIds
         });
-
-        // 3. (Optional) Sort them to match the order Python gave us
-        // MongoDB doesn't guarantee order, so we re-sort them manually
-        const sortedProducts = recommendedIds.map(id => 
-            products.find(p => p._id.toString() === id)
-        ).filter(p => p != null); // Filter out any nulls just in case
-
-        res.json({ success: true, products: sortedProducts });
-
+        const products = await productModel.find({ _id: { $in: pythonResponse.data } });
+        res.json({ success: true, products });
     } catch (error) {
-        console.error("ML Service Error:", error.message);
         res.json({ success: false, message: error.message });
     }
 }
 
-export { listProducts, addProduct, removeProduct, singleProduct, getRecommendations }
+// 2. FOR PRODUCT PAGE (Single Item - ADD THIS BACK)
+const getSingleRecommendation = async (req, res) => {
+    try {
+        const { id } = req.params;
+        // Call Python GET endpoint
+        const pythonResponse = await axios.get(`http://127.0.0.1:8000/recommend/${id}`);
+        
+        const products = await productModel.find({ _id: { $in: pythonResponse.data } });
+        res.json({ success: true, products });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+}
+
+// Update exports to include BOTH functions
+export { listProducts, addProduct, removeProduct, singleProduct, getRecommendations, getSingleRecommendation }
