@@ -8,7 +8,7 @@ productRouter.post('/add', upload.fields([{name:'image1', maxCount:1}, {name:'im
 productRouter.post('/remove', removeProduct);
 productRouter.post('/single', singleProduct);
 productRouter.get('/list', listProducts);
-productRouter.get('/recommend/', getRecommendations);
+productRouter.post('/recommend/', getRecommendations);
 productRouter.get('/recommend/:id', getSingleRecommendation);
 
 export default productRouter;
