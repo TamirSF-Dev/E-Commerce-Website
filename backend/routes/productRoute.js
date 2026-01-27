@@ -1,5 +1,5 @@
 import express from 'express'
-import { listProducts, addProduct, removeProduct, singleProduct } from '../controllers/productController.js'
+import { listProducts, addProduct, removeProduct, singleProduct, getRecommendations } from '../controllers/productController.js';
 import upload from '../middleware/multer.js';
 
 const productRouter = express.Router();
@@ -8,5 +8,6 @@ productRouter.post('/add', upload.fields([{name:'image1', maxCount:1}, {name:'im
 productRouter.post('/remove', removeProduct);
 productRouter.post('/single', singleProduct);
 productRouter.get('/list', listProducts);
+productRouter.get('/recommend/:id', getRecommendations);
 
 export default productRouter;

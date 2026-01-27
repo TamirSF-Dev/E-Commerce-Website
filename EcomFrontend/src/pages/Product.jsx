@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { ShopContext } from '../context/ShopContext';
 import { assets } from '../assets/assets';
 import RelatedProducts from '../components/RelatedProducts';
+import RecommendedProducts from '../components/RecommendedProducts';
 
 const Product = () => {
 
@@ -92,6 +93,7 @@ const Product = () => {
       </div>
 
       <RelatedProducts category={productData.category} subCategory={productData.subCategory} />
+      <RecommendedProducts productId={productId} />
 
     </div>
   ) : <div className='opacity-0'></div>
