@@ -84,26 +84,49 @@ const singleProduct = async (req, res) => {
 const getRecommendations = async (req, res) => {
     try {
         const { productIds, excludeIds } = req.body;
+        
+        // 1. Get Sorted IDs from Python
         const pythonResponse = await axios.post('http://127.0.0.1:8000/recommend', {
             product_ids: productIds,
             exclude_ids: excludeIds
         });
-        const products = await productModel.find({ _id: { $in: pythonResponse.data } });
-        res.json({ success: true, products });
+        
+        const recommendedIds = pythonResponse.data;
+
+        // 2. Fetch Products from MongoDB (Returns in Random Order)
+        const products = await productModel.find({ _id: { $in: recommendedIds } });
+
+        // 3. RE-SORT: Force products to match the Python ID order
+        const sortedProducts = recommendedIds.map(id => 
+            products.find(product => product._id.toString() === id)
+        ).filter(product => product !== undefined); // Remove any nulls if found
+
+        res.json({ success: true, products: sortedProducts });
+
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
 }
 
-// 2. FOR PRODUCT PAGE (Single Item - ADD THIS BACK)
+// 2. FOR PRODUCT PAGE (Single Item)
 const getSingleRecommendation = async (req, res) => {
     try {
         const { id } = req.params;
-        // Call Python GET endpoint
-        const pythonResponse = await axios.get(`http://127.0.0.1:8000/recommend/${id}`);
         
-        const products = await productModel.find({ _id: { $in: pythonResponse.data } });
-        res.json({ success: true, products });
+        // 1. Get Sorted IDs from Python
+        const pythonResponse = await axios.get(`http://127.0.0.1:8000/recommend/${id}`);
+        const recommendedIds = pythonResponse.data;
+        
+        // 2. Fetch Products (Random Order)
+        const products = await productModel.find({ _id: { $in: recommendedIds } });
+
+        // 3. RE-SORT: Match Python's order
+        const sortedProducts = recommendedIds.map(id => 
+            products.find(product => product._id.toString() === id)
+        ).filter(product => product !== undefined);
+
+        res.json({ success: true, products: sortedProducts });
+
     } catch (error) {
         res.json({ success: false, message: error.message });
     }
