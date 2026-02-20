@@ -84,9 +84,10 @@ const singleProduct = async (req, res) => {
 const getRecommendations = async (req, res) => {
     try {
         const { productIds, excludeIds } = req.body;
+        const mlBaseUrl = process.env.ML_SERVICE;
         
         // 1. Get Sorted IDs from Python
-        const pythonResponse = await axios.post('http://127.0.0.1:8000/recommend', {
+        const pythonResponse = await axios.post(`${mlBaseUrl}/recommend`, {
             product_ids: productIds,
             exclude_ids: excludeIds
         });
@@ -112,9 +113,10 @@ const getRecommendations = async (req, res) => {
 const getSingleRecommendation = async (req, res) => {
     try {
         const { id } = req.params;
+        const mlBaseUrl = process.env.ML_SERVICE;
         
         // 1. Get Sorted IDs from Python
-        const pythonResponse = await axios.get(`http://127.0.0.1:8000/recommend/${id}`);
+        const pythonResponse = await axios.get(`${mlBaseUrl}/recommend/${id}`);
         const recommendedIds = pythonResponse.data;
         
         // 2. Fetch Products (Random Order)
